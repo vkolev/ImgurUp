@@ -3,6 +3,9 @@
 
 import os
 import sys
+import dbus
+import dbus.service
+import dbus.glib
 try:
     import simplejson
 except:
@@ -77,7 +80,6 @@ class MainApp:
         self.statusicon.set_tooltip("Imgur Uploader")
 
         self.window.show_all()
-        gtk.main()
 
     def window_destroy(self, widget, data=None):
         quitdiag = gtk.MessageDialog(None, 
@@ -306,6 +308,29 @@ class MainApp:
         conn.commit()
         c.close()
 
+class SingleService(dbus.service.Object):
+    
+    def __init__(self, app):
+        self.app = app
+        bus_name = dbus.service.BusName('org.imgurup.Single', bus = dbus.SessionBus())
+        dbus.service.Object.__init__(self, bus_name, '/org/imgurup/Single')
+        
+    @dbus.service.method(dbus_interface='org.imgurup.Single')
+    def show_window(self):
+        self.app.window.present()
+    
 
 if __name__ == "__main__":
-    MainApp()
+    if dbus.SessionBus().request_name("org.imgurup.Single") != dbus.bus.REQUEST_NAME_REPLY_PRIMARY_OWNER:
+        message = gtk.MessageDialog(None, gtk.DIALOG_DESTROY_WITH_PARENT,
+                                        gtk.MESSAGE_WARNING, gtk.BUTTONS_CLOSE,
+                                        "ImgurUp is already running!")
+        message.set_title("ImgurUp Running")
+        message.run()
+        message.destroy()
+        method = dbus.SessionBus().get_object("org.imgurup.Single", "/org/imgurup/Single").get_dbus_method("show_window")
+        method()
+    else:
+        app = MainApp()
+        service = SingleService(app)
+        gtk.main()
