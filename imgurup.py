@@ -3,6 +3,7 @@
 
 import os
 import sys
+import time
 import dbus
 import dbus.service
 import dbus.glib
@@ -38,13 +39,15 @@ __author__ = "Vladimir Kolev <vladimir.r.kolev@gmail.com>"
 __doc__ = '''Desktop application for uploading images to the
  Imgur.com website\n\nYou will need a developer API key!
  Be awere that there is a <<50 Uploads>> per hour!'''
-__version__ = "1.0"
+__version__ = "1.1"
 
 basepath = os.path.abspath(os.path.dirname(sys.argv[0]))
 
 builder = gtk.Builder()
 builder.add_from_file("%s/data/main.ui" % basepath)
 config = ConfigObj("%s/data/imgurup_config.ini" % basepath)
+
+uploadfile = ""
 
 class MainApp:
     
@@ -116,11 +119,13 @@ class MainApp:
 
     def clear_fields(self, widget, data=None):
         self.filebtn.unselect_all()
+        self.filebtn.set_current_name("")
         self.title_entry.set_text("")
 
     def set_image_title(self, widget, data=None):
         imgname = os.path.basename(self.filebtn.get_filename())
         self.title_entry.set_text(imgname.split('.')[0].title())
+        filename = ""
 
     def upload(self, widget, data=None):
         if(self.filebtn.get_filename() == None):
@@ -132,7 +137,10 @@ class MainApp:
             msgbox.destroy()
         else:
             url = "http://api.imgur.com/2/upload.json"
-            imagedata = open(self.filebtn.get_filename()).read()
+            if uploadfile == "":
+                imagedata = open(self.filebtn.get_filename()).read()
+            else:
+                imagedata = open(uploadfile).read()
             values = {"key": config['apikey'],
                 "image": imagedata.encode('base64'),
                 "title": self.title_entry.get_text()}
@@ -274,6 +282,41 @@ class MainApp:
             apidialog.destroy()
         else:
             apidialog.destroy()
+            
+    def take_screenshot(self, widget, data=None):
+        if self.windowstate == 1:
+            self.window.hide()
+            self.windowstate = 0
+            path = os.getenv('HOME')
+            shot = self.fullscreen_shot(path)
+            self.filebtn.set_uri("file://"+path+"/"+shot)
+            uploadfile = path+"/"+shot
+            self.title_entry.set_text(shot.split('.')[0].title())
+            self.window.show_all()
+            self.windowstate = 1
+        else:
+            path = os.getenv('HOME')
+            shot = self.fullscreen_shot(path)
+            self.filebtn.unselect_all()
+            self.filebtn.select_uri("file://"+path+"/"+shot)
+            uploadfile = path+"/"+shot
+            self.title_entry.set_text(shot.split('.')[0].title())
+            self.window.show_all()
+            self.windowstate = 1
+            
+    def fullscreen_shot(self, path = os.getenv('HOME')):
+        imgformat = "png"
+        width = gtk.gdk.screen_width()
+        height = gtk.gdk.screen_height()
+        shotname = "imgurup_"+time.strftime("%Y%m%d%H%M%S", time.localtime())
+        time.sleep(3.0)
+        screenshot = gtk.gdk.Pixbuf.get_from_drawable(
+                    gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, True, 8, width, height),
+                    gtk.gdk.get_default_root_window(),
+                    gtk.gdk.colormap_get_system(),
+                    0, 0, 0, 0, width, height)
+        screenshot.save(path+"/"+shotname+"."+imgformat, imgformat)
+        return shotname+"."+imgformat
         
 
     def right_click_event(self, icon, button, time):
@@ -289,9 +332,14 @@ class MainApp:
         apimenu = gtk.ImageMenuItem(gtk.STOCK_PREFERENCES)
         apimenu.set_label("API Key")
         apimenu.connect("activate", self.set_api_key)
+        shotmenu = gtk.ImageMenuItem(gtk.STOCK_FULLSCREEN)
+        shotmenu.set_label("Take Screenshot")
+        shotmenu.connect("activate", self.take_screenshot)
 
         menu.append(about)
         menu.append(logview)
+        menu.append(gtk.SeparatorMenuItem())
+        menu.append(shotmenu)
         menu.append(gtk.SeparatorMenuItem())
         menu.append(apimenu)
         menu.append(gtk.SeparatorMenuItem())
