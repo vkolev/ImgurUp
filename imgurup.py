@@ -125,7 +125,6 @@ class MainApp:
     def set_image_title(self, widget, data=None):
         imgname = os.path.basename(self.filebtn.get_filename())
         self.title_entry.set_text(imgname.split('.')[0].title())
-        filename = ""
 
     def upload(self, widget, data=None):
         if(self.filebtn.get_filename() == None):
