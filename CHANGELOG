@@ -1,3 +1,8 @@
+v 1.2:
+ - Removed the filechooser button
+ - Taking and uploading screenshots works better now
+ - Allow drag'n'drop in the main window
+
 v 1.1:
  - Screenshot taking
 

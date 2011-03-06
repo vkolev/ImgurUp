@@ -38,12 +38,36 @@
               </packing>
             </child>
             <child>
-              <object class="GtkFileChooserButton" id="filechoose">
+              <object class="GtkHBox" id="hbox10">
                 <property name="visible">True</property>
-                <property name="tooltip_markup">Select image to upload</property>
+                <child>
+                  <object class="GtkEntry" id="file_entry">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="invisible_char">&#x2022;</property>
+                    <property name="primary_icon_name">emblem-photos</property>
+                  </object>
+                  <packing>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkButton" id="filechoose">
+                    <property name="label">gtk-open</property>
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">True</property>
+                    <property name="use_stock">True</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">False</property>
+                    <property name="padding">4</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
               </object>
               <packing>
-                <property name="padding">2</property>
                 <property name="position">1</property>
               </packing>
             </child>
@@ -418,5 +442,4 @@
     </action-widgets>
   </object>
   <object class="GtkFileFilter" id="filefilter1"/>
-  <object class="GtkAction" id="action1"/>
 </interface>

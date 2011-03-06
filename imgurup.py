@@ -4,6 +4,7 @@
 import os
 import sys
 import time
+import mimetypes
 import dbus
 import dbus.service
 import dbus.glib
@@ -31,7 +32,7 @@ except:
 import webbrowser
 
 '''
-Simple desktop app for uploading image to Imgur.com
+Simple desktop app for uploading images to Imgur.com
 @author: Vladimir Kolev
 '''
 
@@ -39,7 +40,7 @@ __author__ = "Vladimir Kolev <vladimir.r.kolev@gmail.com>"
 __doc__ = '''Desktop application for uploading images to the
  Imgur.com website\n\nYou will need a developer API key!
  Be awere that there is a <<50 Uploads>> per hour!'''
-__version__ = "1.1"
+__version__ = "1.2"
 
 basepath = os.path.abspath(os.path.dirname(sys.argv[0]))
 
@@ -47,7 +48,7 @@ builder = gtk.Builder()
 builder.add_from_file("%s/data/main.ui" % basepath)
 config = ConfigObj("%s/data/imgurup_config.ini" % basepath)
 
-uploadfile = ""
+dnd_list = [ ( 'text/uri-list', 0, 80 ) ]
 
 class MainApp:
     
@@ -59,8 +60,9 @@ class MainApp:
         self.filefilter = builder.get_object('filefilter1')
         self.filefilter.set_name("Image Files")
         self.filefilter.add_pixbuf_formats()
-        self.filebtn.set_filter(self.filefilter)
-        self.filebtn.connect('file-set', self.set_image_title)
+        self.filebtn.connect('clicked', self.set_image_title)
+
+        self.file_name = builder.get_object('file_entry')
         self.title_entry = builder.get_object('title_entry')
         self.header = builder.get_object('headerimg')
 
@@ -80,6 +82,9 @@ class MainApp:
         self.statusicon.set_from_file('%s/data/imgurup_16.png' % basepath)
         self.statusicon.connect("popup-menu", self.right_click_event)
         self.statusicon.connect("activate", self.icon_clicked)
+        self.window.connect("drag_data_received", self.on_file_dragged)
+        self.window.drag_dest_set(gtk.DEST_DEFAULT_MOTION | gtk.DEST_DEFAULT_DROP,
+                                 dnd_list, gtk.gdk.ACTION_COPY)
         self.statusicon.set_tooltip("Imgur Uploader")
 
         self.window.show_all()
@@ -117,29 +122,50 @@ class MainApp:
         about_dialog.run()
         about_dialog.destroy()
 
+
     def clear_fields(self, widget, data=None):
-        self.filebtn.unselect_all()
-        self.filebtn.set_current_name("")
+        self.file_name.set_text("")
         self.title_entry.set_text("")
 
+    def on_file_dragged(self, widget, context, x, y, selection, target_type, timestamp):
+        imagepath = "/" + selection.data.strip('\r\n\x00').strip("file://")
+        if mimetypes.guess_type(imagepath)[0].startswith('image') == True:
+            self.file_name.set_text(imagepath)
+            imagename = os.path.basename(imagepath)
+            self.title_entry.set_text(imagename.split('.')[0].title())
+        else:
+            print self.filefilter 
+            print "URI: " 
+            print selection.data.strip('\r\n\x00')
+            print "Context:"
+            print context
+
     def set_image_title(self, widget, data=None):
-        imgname = os.path.basename(self.filebtn.get_filename())
-        self.title_entry.set_text(imgname.split('.')[0].title())
+        filedlg = gtk.FileChooserDialog("Select image file...", None,
+                      gtk.FILE_CHOOSER_ACTION_OPEN,
+                      (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                      gtk.STOCK_OPEN, gtk.RESPONSE_OK))
+        filedlg.add_filter(self.filefilter)
+        response = filedlg.run()
+        if response == gtk.RESPONSE_OK:
+            self.file_name.set_text(filedlg.get_filename())
+            imgname = os.path.basename(filedlg.get_filename())
+            self.title_entry.set_text(imgname.split('.')[0].title())
+        else:
+            filedlg.destroy()
+        filedlg.destroy()
 
     def upload(self, widget, data=None):
-        if(self.filebtn.get_filename() == None):
+        if(os.path.exists(self.file_name.get_text()) == False):
             msgbox = gtk.MessageDialog(None, gtk.DIALOG_DESTROY_WITH_PARENT,
                                         gtk.MESSAGE_WARNING, gtk.BUTTONS_CLOSE,
-                                        "Nothing to upload, select a file")
+                                        "Nothing to upload, select a valid file")
             msgbox.set_title("No file selected")
             msgbox.run()
             msgbox.destroy()
         else:
             url = "http://api.imgur.com/2/upload.json"
-            if uploadfile == "":
-                imagedata = open(self.filebtn.get_filename()).read()
-            else:
-                imagedata = open(uploadfile).read()
+            imagedata = open(self.file_name.get_text()).read()
             values = {"key": config['apikey'],
                 "image": imagedata.encode('base64'),
                 "title": self.title_entry.get_text()}
@@ -288,7 +314,7 @@ class MainApp:
             self.windowstate = 0
             path = os.getenv('HOME')
             shot = self.fullscreen_shot(path)
-            self.filebtn.set_uri("file://"+path+"/"+shot)
+            self.file_name.set_text(path+"/"+shot)
             uploadfile = path+"/"+shot
             self.title_entry.set_text(shot.split('.')[0].title())
             self.window.show_all()
@@ -296,9 +322,7 @@ class MainApp:
         else:
             path = os.getenv('HOME')
             shot = self.fullscreen_shot(path)
-            self.filebtn.unselect_all()
-            self.filebtn.select_uri("file://"+path+"/"+shot)
-            uploadfile = path+"/"+shot
+            self.file_name.set_text(path+"/"+shot)
             self.title_entry.set_text(shot.split('.')[0].title())
             self.window.show_all()
             self.windowstate = 1

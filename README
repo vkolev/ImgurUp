@@ -29,6 +29,8 @@ a Logger for your uploaded images.
 The main features are as exptected:
 - A status icon for easy access to the application
 - Info Dialog - showing you the important links about the uploaded image
+- Taking a screenshot of the whole screen
+- Drag'n'drop images to the main window
 - Database - stores the informatin about the uploaded image for later use
 
     = Limitations =
