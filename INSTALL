@@ -1,0 +1,8 @@
+To install and use the ImgurUp application you need to have the following dependencies installed:
+
+- python-oauth2 (sudo pip install oauth2)
+- python-configobj (sudo apt-get install python-configobj)
+- python-simplejson (sudo apt-get install python-simplejson)
+- python-gtk2 (sudo apt-get install python-gtk2)
+
+The ImgurLib is already included in the source distribution and so will be in the packaged versions.

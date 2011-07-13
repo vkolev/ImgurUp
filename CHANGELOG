@@ -1,3 +1,12 @@
+v 2.0:
+ - Complete rewrite of the ImgurUp application
+ - Support for the Authenticated API replaces the Anonymous API
+ - Album dialog added to work with your online albums @ imgur.com
+ - Preferences modified for better control when taking screenshots
+ - Naming options for the screenshots were also featured
+ - You can now change the directory for taking screenshots
+ - And many more minor improvements
+
 v 1.2:
  - Removed the filechooser button
  - Taking and uploading screenshots works better now
