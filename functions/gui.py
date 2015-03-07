@@ -8,27 +8,30 @@ from imgurlib import ImgurLib
 
 COL_PATH = 0
 
+
 def quit_msg(msg):
-    quit = gtk.MessageDialog(None, gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
+    quitdlg = gtk.MessageDialog(None, gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                              gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, None)
-    quit.set_markup(msg)
-    response = quit.run()
+    quitdlg.set_markup(msg)
+    response = quitdlg.run()
     if response == gtk.RESPONSE_YES:
-        quit.destroy()
+        quitdlg.destroy()
         return True
     else:
-        quit.destroy()
+        quitdlg.destroy()
         return False
-    
+
+
 class AboutDialog(object):
-    
+
     def __init__(self, path):
         builder = gtk.Builder()
         builder.add_from_file("%s/data/main_window.ui" % path)
         about = builder.get_object('aboutdialog1')
         about.run()
         about.destroy()
-    
+
+
 def show_info(path, links):
     builder = gtk.Builder()
     builder.add_from_file("%s/data/main_window.ui" % path)
@@ -59,8 +62,9 @@ def show_info(path, links):
         return True
     info.destroy()
 
+
 class AlbumsDialog(object):
-        
+
     def __init__(self, path, il):
         self.il = il
         self.path = path
@@ -71,10 +75,10 @@ class AlbumsDialog(object):
         delalbum = builder.get_object('button5')
         delalbum.connect('clicked', self.delete_album)
         info_string = builder.get_object('label42')
-        image_count = simplejson.loads(self.il.get_image_count())
-        info_string.set_markup("You have <b>%s</b> images in your albums." % 
-                               image_count['images_count']['count'])
-        
+        image_count = self.il.get_account_album_count('me')
+        info_string.set_markup("You have <b>%s</b> albums." %
+                               image_count)
+
         self.album_store = gtk.ListStore(gtk.gdk.Pixbuf, str, str)
         self.album_list = builder.get_object('treeview1')
         self.album_list.set_model(self.album_store)
@@ -82,12 +86,12 @@ class AlbumsDialog(object):
         self.create_album_columns(self.album_list)
         self.album_store.append([self.album_list.render_icon(gtk.STOCK_HOME, size=gtk.ICON_SIZE_MENU, detail=None), 'Unsorted', ""])
         try:
-            albums = simplejson.loads(self.il.get_albums())
-            for album in albums['albums']:
-                self.album_store.append([self.album_list.render_icon(gtk.STOCK_DIRECTORY, size=gtk.ICON_SIZE_MENU, detail=None), album['title'], album['id']])
+            albums = self.il.get_account_albums('me')
+            for album in albums:
+                self.album_store.append([self.album_list.render_icon(gtk.STOCK_DIRECTORY, size=gtk.ICON_SIZE_MENU, detail=None), album.title, album.id])
         except:
             pass
-                   
+
         self.icon_sw = builder.get_object('scrolledwindow2')
         self.icon_store = self.create_store()
         self.fillstore()
@@ -105,27 +109,27 @@ class AlbumsDialog(object):
         if response == gtk.RESPONSE_CLOSE:
             self.albumdialog.destroy()
         self.albumdialog.destroy()
-        
+
     def show_image_info(self, tree, path):
         model = self.icon_list.get_model()
         ImageInfo(self.path, self.il, model[path][0])
-        
+
     def image_menu(self, widget, event):
         if event.button == 3:
             menu = gtk.Menu()
             show_info = gtk.ImageMenuItem(gtk.STOCK_INFO)
-            show_info.connect("activate", self.show_image_info, 
+            show_info.connect("activate", self.show_image_info,
                                self.icon_list.get_path_at_pos(int(event.x),
                                                               int(event.y)))
             del_option = gtk.ImageMenuItem(gtk.STOCK_DELETE)
-            del_option.connect("activate", self.delete_image, 
+            del_option.connect("activate", self.delete_image,
                                self.icon_list.get_path_at_pos(int(event.x),
                                                               int(event.y)))
             menu.append(show_info)
             menu.append(del_option)
             menu.popup(None, None, None, 1, 0)
             menu.show_all()
-        
+
     def delete_image(self, sender, path):
         model = self.icon_list.get_model()
         image = simplejson.loads(self.il.get_image_info(model[path][0]))['images']['image']
@@ -138,11 +142,11 @@ class AlbumsDialog(object):
             if "Success" in response:
                 self.icon_store.remove(model.get_iter(path))
         confirm.destroy()
-    
+
     def get_album(self, tree, path, column):
         model = tree.get_model()
         self.fillstore(model[path][2])
-        
+
     def delete_album(self, sender):
         selection = self.album_list.get_selection()
         if selection.count_selected_rows() > 0:
@@ -159,8 +163,7 @@ class AlbumsDialog(object):
             confirm.destroy()
         else:
             pass
-        
-        
+
     def create_album(self, widget, data=None):
         builder = gtk.Builder()
         builder.add_from_file("%s/data/main_window.ui" % self.path)
@@ -189,102 +192,104 @@ class AlbumsDialog(object):
             except:
                 pass
         newalbum.destroy()
-    
+
     def create_album_columns(self, album_list):
         rendererPixbuf = gtk.CellRendererPixbuf()
         column = gtk.TreeViewColumn("#", rendererPixbuf)
         column.add_attribute(rendererPixbuf, 'pixbuf', 0)
         album_list.append_column(column)
-        
+
         rendererText = gtk.CellRendererText()
         column = gtk.TreeViewColumn("Title", rendererText, text=1)
         album_list.append_column(column)
-        
+
         rendererText = gtk.CellRendererText()
         column = gtk.TreeViewColumn("Hash", rendererText, text=2)
         album_list.append_column(column)
-    
+
     def fillstore(self, albumid=""):
         self.icon_store.clear()
         if albumid == "":
-            images = simplejson.loads(self.il.get_account_images())
-            for image in images['images']:
-                name = image['image']['hash']
-                response = urllib2.urlopen(image['links']['small_square'])
+            images = self.il.get_account_images('me')
+            for image in images:
+                name = image.id
+                response = urllib2.urlopen("http://i.imgur.com/%ss.jpg" % image.id)
                 loader = gtk.gdk.PixbufLoader()
                 loader.write(response.read())
                 loader.close()
                 img = loader.get_pixbuf()
                 self.icon_store.append([name, img])
         else:
-            images = simplejson.loads(self.il.get_album_images(albumid))
-            for image in images['albums']:
-                name = image['image']['hash']
-                response = urllib2.urlopen(image['links']['small_square'])
+            images = self.il.get_album_images(albumid)
+            for image in images:
+                name = image.id
+                response = urllib2.urlopen("http://i.imgur.com/%ss.jpg" % image.id)
                 loader = gtk.gdk.PixbufLoader()
                 loader.write(response.read())
                 loader.close()
                 img = loader.get_pixbuf()
                 self.icon_store.append([name, img])
-    
+
     def create_store(self):
         store = gtk.ListStore(str, gtk.gdk.Pixbuf)
         store.set_sort_column_id(COL_PATH, gtk.SORT_ASCENDING)
         return store
-    
+
+
 class ImageInfo(object):
-    
+
     def __init__(self, path, il, hash):
         self.path = path
         self.il = il
         builder = gtk.Builder()
         builder.add_from_file('%s/data/main_window.ui' % self.path)
         imageview = builder.get_object('imageview')
-        img = simplejson.loads(self.il.get_image_info(hash))
+        img = self.il.get_image(hash)
         image = builder.get_object('image5')
-        response = urllib2.urlopen(img['images']['links']['large_thumbnail'])
+        response = urllib2.urlopen("http://i.imgur.com/%sm.jpg" % img.id)
         loader = gtk.gdk.PixbufLoader()
         loader.write(response.read())
         loader.close()
         image.set_from_pixbuf(loader.get_pixbuf())
         imageview.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
-        
+
         #============= entries ================
         title = builder.get_object('label29')
-        titl_string = img['images']['image']['title']
+        titl_string = img.title
         if titl_string == None:
             title.set_text("None")
         else:
-            title.set_text(titl_string)        
+            title.set_text(titl_string)
         desc = builder.get_object('label31')
-        desc_string = img['images']['image']['caption']
+        desc_string = img.description
         if desc_string == None:
             desc.set_text("None")
         else:
             desc.set_text(desc_string)
         orig = builder.get_object('entry12')
-        orig.set_text(img['images']['links']['original'])
+        orig.set_text(img.link)
         imgur = builder.get_object('entry13')
-        imgur.set_text(img['images']['links']['imgur_page'])
+        imgur.set_text("http://imgur.com/%s" % img.id)
         square = builder.get_object('entry14')
-        square.set_text(img['images']['links']['small_square'])
+        square.set_text("http://i.imgur.com/%ss.jpg" % img.id)
         thumb = builder.get_object('entry15')
-        thumb.set_text(img['images']['links']['large_thumbnail'])
+        thumb.set_text("http://i.imgur.com/%sl.jpg" % img.id)
         delete = builder.get_object('entry18')
-        delete.set_text(img['images']['links']['delete_page'])
+        delete.set_text(img.deletehash)
         forum = builder.get_object('entry16')
-        links = self.il.generate_links(img['images']['image']['hash'])
-        forum.set_text(links['forums'])
-        html = builder.get_object('entry17')
-        html.set_text(links['html'])
-        
+        #links = self.il.generate_links(img.id)
+        #forum.set_text()
+        #html = builder.get_object('entry17')
+        #html.set_text(links['html'])
+
         response = imageview.run()
         if response == gtk.RESPONSE_CLOSE:
             imageview.destroy()
         imageview.destroy()
-        
+
+
 class PrefsDialog(object):
-    
+
     def __init__(self, path, config):
         builder = gtk.Builder()
         builder.add_from_file("%s/data/main_window.ui" % path)
@@ -308,7 +313,7 @@ class PrefsDialog(object):
             config['waitscreen'] = int(self.shot_timeout.get_value())
             config.write()
         dialog.destroy()
-        
+
     def select_shot_dir(self, sender):
         opendialog = gtk.FileChooserDialog("Select output folder",
                                            None,

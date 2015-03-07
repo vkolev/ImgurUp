@@ -11,7 +11,7 @@ import simplejson
 import time
 import gobject
 
-basepath = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]))) 
+basepath = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0])))
 
 try:
     import pygtk
@@ -23,17 +23,17 @@ try:
     import gtk
 except:
     print "You need GTK installed to use this application"
-    
+
 from configobj import ConfigObj
 from functions.gui import *
-from functions.imgurlib import ImgurLib
+from imgurpython import ImgurClient
 config = ConfigObj("%s/data/config.ini" % basepath)
 
 dnd_list = [ ( 'text/uri-list', 0, 80 ) ]
 
 
 class ImgurUp(object):
-    
+
     def __init__(self):
         self.work_left = True
         builder = gtk.Builder()
@@ -66,24 +66,24 @@ class ImgurUp(object):
             self.user = builder.get_object('authorbutton')
             self.user.set_sensitive(False)
         else:
-            self.il = ImgurLib(config['imgurkey'], config['imgursecret'])
+            self.il = ImgurClient(config['imgurkey'], config['imgursecret'])
             if config['usertoken'] and config['usersecret']:
-                self.il.authorize_with_token(config['usertoken'], config['usersecret'])
+                self.il = ImgurClient(config['imgurkey'], config['imgursecret'], config['usertoken'], config['usersecret'])
                 self.user_auth = 1
             else:
                 self.user_info()
-                
+
     def exit(self, widget=None):
         if quit_msg("<b>Are you sure to quit?</b>") == True:
             gtk.main_quit()
         else:
             return False
-        
+
     def on_window1_destroy(self, widget, data=None):
         self.window.hide_on_delete()
         self.windowstate = 0
         return True
-        
+
     def select_image(self, widget, data=None):
         filedlg = gtk.FileChooserDialog("Select image file...", None,
                       gtk.FILE_CHOOSER_ACTION_OPEN,
@@ -100,13 +100,14 @@ class ImgurUp(object):
         else:
             filedlg.destroy()
         filedlg.destroy()
-        
+
     def upload_image(self, widget, data=None):
         if self.check_fields() == True:
             self.text_info.set_markup("<b><i>Uploading...</i></b>")
-            info = self.il.upload_image(self.imagepath.get_text(),
-                                 self.imagetitle.get_text(),
-                                 self.imagecaption.get_text())
+            config = {"title": self.imagetitle.get_text(),
+            "description": self.imagecaption.get_text()}
+            info = self.il.upload_from_path(self.imagepath.get_text(),
+                                 config)
             if show_info(basepath, info) == True:
                 f = open('%s/recent.txt' % basepath, 'a')
                 f.write(info+"\n\r")
@@ -116,7 +117,7 @@ class ImgurUp(object):
                 self.menu1.append(menuItem)
                 self.menu1.show_all()
             self.text_info.set_text("")
-    
+
     def check_fields(self):
         if not self.imagepath.get_text():
             return False
@@ -124,13 +125,13 @@ class ImgurUp(object):
             self.imagecaption.set_text("None")
         else:
             return True
-        
+
     def clear_fields(self, widget, data=None):
         self.imagetitle.set_text("")
         self.imagepath.set_text("")
         self.imagecaption.set_text("")
         self.image.set_from_file("%s/data/imgurup-logo.png" % basepath)
-        
+
     def take_screenshot(self, widget, data=None):
         if config['screenshotpath'] != "":
             path = config['screenshotpath']
@@ -153,8 +154,8 @@ class ImgurUp(object):
         self.imagetitle.set_text(shot.split('.')[0].title())
         if bool(config['captionremove']) == False:
             self.imagecaption.set_text("Desktop Screenshot with ImgurUp")
-            
-    
+
+
     def fullscreen_shot(self, path = os.getenv('HOME')):
         from string import Template
         imgformat = "png"
@@ -174,13 +175,13 @@ class ImgurUp(object):
         config['count'] = int(config['count']) + 1
         config.write()
         return shotname+"."+imgformat
-    
+
     def show_albums(self, widget, data=None):
         AlbumsDialog(basepath, self.il)
-    
+
     def about_click(self, widget, data=None):
         AboutDialog(basepath)
-    
+
     def on_file_dragged(self, widget, context, x, y, select, target, timestamp):
         imagepath = "/" + select.data.strip('\r\n\x00').strip("file://")
         if mimetypes.guess_type(imagepath)[0].startswith('image') == True:
@@ -191,7 +192,7 @@ class ImgurUp(object):
             self.imagetitle.set_text(imagename.split('.')[0].title())
         else:
             pass
-        
+
     def user_info(self, sender=None, data=None):
         builder = gtk.Builder()
         builder.add_from_file('%s/data/main_window.ui' % basepath)
@@ -204,50 +205,52 @@ class ImgurUp(object):
         credits = builder.get_object('label23')
         authbut = builder.get_object('button3')
         if self.user_auth == 1:
-            info = simplejson.loads(self.il.account_info())
+            info = self.il.get_account('me')
             authimage.set_from_stock(gtk.STOCK_OK, gtk.ICON_SIZE_SMALL_TOOLBAR)
             authtext.set_markup('<span foreground="green">Authenticated</span>')
-            username.set_text(info['account']['url'])
-            prof.set_text(info['account']['is_pro'])
-            privacy.set_text(info['account']['default_album_privacy'])
-            info = simplejson.loads(self.il.get_credits())
-            credits.set_markup('<b>%s</b> credits left' % info['credits']['remaining'])
+            username.set_text(info.url)
+            prof.set_text(str(info.pro_expiration))
+            #privacy.set_text(info['account']['default_album_privacy'])
+            info = self.il.get_credits()
+            credits.set_markup('<b>%s</b> credits left' % info['UserRemaining'])
             authbut.set_sensitive(False)
         else:
             authbut.connect("clicked", self.authenticate)
-        
+
         userinfo.add_buttons(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
         userinfo.run()
         userinfo.destroy()
-        
+
     def authenticate(self, widget=None, data=None):
         authdialog = gtk.Dialog("Authenticate", None, gtk.DIALOG_MODAL|gtk.DIALOG_DESTROY_WITH_PARENT,
                                       (gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT,
                                        gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
-        link = gtk.LinkButton(self.il.get_auth_url(), "Click here...")
+        link = gtk.LinkButton(self.il.get_auth_url('pin'), "Click here...")
         label = gtk.Label("Visit the following Link and paste the PIN code")
         entry = gtk.Entry()
         authdialog.vbox.pack_start(label)
         authdialog.vbox.pack_start(link)
         authdialog.vbox.pack_start(entry)
         authdialog.show_all()
-        
+
         response = authdialog.run()
         print response
         if response == gtk.RESPONSE_ACCEPT:
-            if self.il.authorize(entry.get_text()):
+            try:
+                credentials = self.il.authorize(entry.get_text(), 'pin')
                 self.user_auth = 1
-                config['usertoken'] = self.il.oauth_token
-                config['usersecret'] = self.il.oauth_token_secret
+                self.il.set_user_auth(credentials['access_token'], credentials['refresh_token'])
+                config['usertoken'] = credentials['access_token']
+                config['usersecret'] = credentials['refresh_token']
                 config.write()
-            else:
+            except:
                 error_msg("The PIN was not correct")
                 authdialog.destroy()
         authdialog.destroy()
-            
+
     def open_preferences(self, sender, data=None):
         PrefsDialog(basepath, config)
-        
+
     def icon_clicked(self, sender, data=None):
         if(self.windowstate == 0):
             self.window.show_all()
@@ -256,7 +259,7 @@ class ImgurUp(object):
             self.window.hide_on_delete()
             self.windowstate = 0
             return True
-        
+
     def right_click_event(self, icon, button, time):
         menu = gtk.Menu()
 
@@ -287,18 +290,20 @@ class ImgurUp(object):
 
         menu.popup(None, None, gtk.status_icon_position_menu,
                    button, time, self.statusicon)
-            
+
+
 class SingleService(dbus.service.Object):
-    
+
     def __init__(self, app):
         self.app = app
         bus_name = dbus.service.BusName('org.imgurup.Single', bus=dbus.SessionBus())
         dbus.service.Object.__init__(self, bus_name, '/org/imgurup/Single')
-        
+
     @dbus.service.method(dbus_interface='org.imgurup.Single')
     def show_window(self):
         self.app.window.present()
-        
+
+
 if __name__ == "__main__":
     owner = dbus.bus.REQUEST_NAME_REPLY_PRIMARY_OWNER
     if dbus.SessionBus().request_name("org.imgurup.Single") != owner:
@@ -308,12 +313,10 @@ if __name__ == "__main__":
         message.set_title("ImgurUp Running")
         message.run()
         message.destroy()
-        method = dbus.SessionBus().get_object("org.imgurup.Single", 
+        method = dbus.SessionBus().get_object("org.imgurup.Single",
             "/org/imgurup/Single").get_dbus_method("show_window")
         method()
     else:
         app = ImgurUp()
         service = SingleService(app)
         gtk.main()
-        
-        
